@@ -15,19 +15,19 @@ import school.sptech.exemplojwt.service.usuario.dto.UsuarioCriacaoDto;
 @RequestMapping("/usuarios")
 public class UsuarioController {
 
-  @Autowired
-  private UsuarioService usuarioService;
+    @Autowired
+    private UsuarioService usuarioService;
 
-  @PostMapping("/criar")
-  public ResponseEntity<Void> criar(@RequestBody UsuarioCriacaoDto usuarioCriacaoDto) {
-    this.usuarioService.criar(usuarioCriacaoDto);
-    return ResponseEntity.status(201).build();
-  }
+    @PostMapping
+    public ResponseEntity<Void> criar(@RequestBody UsuarioCriacaoDto usuarioCriacaoDto) {
+        this.usuarioService.criar(usuarioCriacaoDto);
+        return ResponseEntity.status(201).build();
+    }
 
-  @PostMapping("/login")
-  public ResponseEntity<UsuarioTokenDto> login(@RequestBody UsuarioLoginDto usuarioLoginDto) {
-    UsuarioTokenDto usuarioTokenDto = this.usuarioService.autenticar(usuarioLoginDto);
+    @PostMapping("/login")
+    public ResponseEntity<UsuarioTokenDto> login(@RequestBody UsuarioLoginDto usuarioLoginDto) {
+        UsuarioTokenDto usuarioTokenDto = this.usuarioService.autenticar(usuarioLoginDto);
 
-    return ResponseEntity.status(200).body(usuarioTokenDto);
-  }
+        return ResponseEntity.status(200).body(usuarioTokenDto);
+    }
 }

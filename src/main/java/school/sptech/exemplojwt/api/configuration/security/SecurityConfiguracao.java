@@ -10,7 +10,6 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -37,17 +36,17 @@ public class SecurityConfiguracao {
     private AutenticacaoEntryPoint autenticacaoJwtEntryPoint;
 
     private static final AntPathRequestMatcher[] URLS_PERMITIDAS = {
+            new AntPathRequestMatcher("/swagger-ui/**"),
+            new AntPathRequestMatcher("/swagger-ui.html"),
             new AntPathRequestMatcher("/swagger-resources"),
             new AntPathRequestMatcher("/swagger-resources/**"),
             new AntPathRequestMatcher("/configuration/ui"),
             new AntPathRequestMatcher("/configuration/security"),
-            new AntPathRequestMatcher("/swagger-ui.html"),
-            new AntPathRequestMatcher("/webjars/**"),
-            new AntPathRequestMatcher("/v3/api-docs/**"),
             new AntPathRequestMatcher("/api/public/**"),
             new AntPathRequestMatcher("/api/public/authenticate"),
+            new AntPathRequestMatcher("/webjars/**"),
+            new AntPathRequestMatcher("/v3/api-docs/**"),
             new AntPathRequestMatcher("/actuator/*"),
-            new AntPathRequestMatcher("/swagger-ui/**"),
             new AntPathRequestMatcher("/usuarios/login/**"),
             new AntPathRequestMatcher("/h2-console/**")
     };
@@ -62,8 +61,7 @@ public class SecurityConfiguracao {
                 .and()
                 .csrf()
                 .disable()
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(URLS_PERMITIDAS)
+                .authorizeHttpRequests(authorize -> authorize.requestMatchers(URLS_PERMITIDAS)
                         .permitAll()
                         .anyRequest()
                         .authenticated()

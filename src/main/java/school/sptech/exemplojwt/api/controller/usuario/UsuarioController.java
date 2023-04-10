@@ -1,5 +1,6 @@
 package school.sptech.exemplojwt.api.controller.usuario;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,6 +20,7 @@ public class UsuarioController {
     private UsuarioService usuarioService;
 
     @PostMapping
+    @SecurityRequirement(name = "Bearer")
     public ResponseEntity<Void> criar(@RequestBody UsuarioCriacaoDto usuarioCriacaoDto) {
         this.usuarioService.criar(usuarioCriacaoDto);
         return ResponseEntity.status(201).build();

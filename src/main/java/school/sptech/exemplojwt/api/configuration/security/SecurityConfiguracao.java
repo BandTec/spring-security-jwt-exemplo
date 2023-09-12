@@ -17,11 +17,14 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import school.sptech.exemplojwt.api.configuration.security.jwt.GerenciadorTokenJwt;
 import school.sptech.exemplojwt.service.usuario.autenticacao.AutenticacaoService;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -58,7 +61,6 @@ public class SecurityConfiguracao {
                 .frameOptions().disable()
                 .and()
                 .cors()
-                .configurationSource(request -> buildCorsConfiguration())
                 .and()
                 .csrf()
                 .disable()
@@ -106,19 +108,26 @@ public class SecurityConfiguracao {
         return new BCryptPasswordEncoder();
     }
 
-    private CorsConfiguration buildCorsConfiguration() {
-        CorsConfiguration configuration = new CorsConfiguration();
-
-        configuration.setAllowedOriginPatterns(Collections.singletonList(ORIGENS_PERMITIDAS));
-        configuration.setAllowedMethods(
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuracao = new CorsConfiguration();
+        configuracao.applyPermitDefaultValues();
+        configuracao.setAllowedMethods(
                 Arrays.asList(
                         HttpMethod.GET.name(),
                         HttpMethod.POST.name(),
                         HttpMethod.PUT.name(),
-                        HttpMethod.DELETE.name())
-        );
+                        HttpMethod.PATCH.name(),
+                        HttpMethod.DELETE.name(),
+                        HttpMethod.OPTIONS.name(),
+                        HttpMethod.HEAD.name(),
+                        HttpMethod.TRACE.name()));
 
-        configuration.setAllowedHeaders(Arrays.asList(HttpHeaders.CONTENT_TYPE, HttpHeaders.AUTHORIZATION));
-        return configuration;
+        configuracao.setExposedHeaders(List.of(HttpHeaders.CONTENT_DISPOSITION));
+
+        UrlBasedCorsConfigurationSource origem = new UrlBasedCorsConfigurationSource();
+        origem.registerCorsConfiguration("/**", configuracao);
+
+        return origem;
     }
 }

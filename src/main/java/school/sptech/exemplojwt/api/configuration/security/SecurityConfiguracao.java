@@ -6,10 +6,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,7 +25,6 @@ import school.sptech.exemplojwt.api.configuration.security.jwt.GerenciadorTokenJ
 import school.sptech.exemplojwt.service.usuario.autenticacao.AutenticacaoService;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 @Configuration
@@ -55,30 +56,25 @@ public class SecurityConfiguracao {
             new AntPathRequestMatcher("/error/**")
     };
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.headers()
-                .frameOptions().disable()
-                .and()
-                .cors()
-                .and()
-                .csrf()
-                .disable()
-                .authorizeHttpRequests(authorize -> authorize.requestMatchers(URLS_PERMITIDAS)
-                        .permitAll()
-                        .anyRequest()
-                        .authenticated()
-                )
-                .exceptionHandling()
-                .authenticationEntryPoint(autenticacaoJwtEntryPoint)
-                .and()
-                .sessionManagement()
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+        @Bean
+        public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .cors(Customizer.withDefaults())
+            .csrf(CsrfConfigurer<HttpSecurity>::disable)
+            .authorizeHttpRequests(authorize -> authorize.requestMatchers(URLS_PERMITIDAS)
+                    .permitAll()
+                    .anyRequest()
+                    .authenticated()
+            )
+            .exceptionHandling(handling -> handling
+                .authenticationEntryPoint(autenticacaoJwtEntryPoint))
+            .sessionManagement(management -> management
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
         http.addFilterBefore(jwtAuthenticationFilterBean(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
+        }
 
     @Bean
     public AuthenticationManager authManager(HttpSecurity http) throws Exception {

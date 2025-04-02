@@ -1,4 +1,4 @@
-package school.sptech.exemplojwt.api.configuration.security.jwt;
+package school.sptech.exemplojwt.config;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

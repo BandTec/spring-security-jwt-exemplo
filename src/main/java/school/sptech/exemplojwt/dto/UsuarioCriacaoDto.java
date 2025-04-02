@@ -1,4 +1,4 @@
-package school.sptech.exemplojwt.service.usuario.dto;
+package school.sptech.exemplojwt.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
@@ -7,11 +7,11 @@ import jakarta.validation.constraints.Size;
 public class UsuarioCriacaoDto {
 
   @Size(min = 3, max = 10)
-  @Schema(description = "Nome do usuário", example = "Reis")
+  @Schema(description = "Nome do usuário", example = "John Doe")
   private String nome;
 
   @Email
-  @Schema(description = "Email do usuário", example = "rafael.reis@sptech.school")
+  @Schema(description = "Email do usuário", example = "john@doe.com")
   private String email;
 
   @Size(min = 6, max = 20)

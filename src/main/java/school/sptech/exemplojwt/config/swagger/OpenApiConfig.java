@@ -1,4 +1,4 @@
-package school.sptech.exemplojwt.api.configuration.security.swagger;
+package school.sptech.exemplojwt.config.swagger;
 
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;

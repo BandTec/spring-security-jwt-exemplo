@@ -1,4 +1,4 @@
-package school.sptech.exemplojwt.api.configuration.security;
+package school.sptech.exemplojwt.config;
 
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -7,7 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import school.sptech.exemplojwt.service.usuario.autenticacao.AutenticacaoService;
+import school.sptech.exemplojwt.service.AutenticacaoService;
 
 public class AutenticacaoProvider implements AuthenticationProvider {
 

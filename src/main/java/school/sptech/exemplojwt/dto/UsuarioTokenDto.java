@@ -1,4 +1,4 @@
-package school.sptech.exemplojwt.service.usuario.autenticacao.dto;
+package school.sptech.exemplojwt.dto;
 
 public class UsuarioTokenDto {
 

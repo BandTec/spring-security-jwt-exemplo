@@ -25,4 +25,4 @@ Para exemplificar a integração com uma aplicação cliente, disponibilizamos u
 
 ## 📘 Pré-Requisitos
 Antes de iniciar, certifique-se de ter os seguintes pré-requisitos instalados:
-- **JDK 17**: Necessário para executar o projeto Spring Boot.
+- **JDK 21**: Necessário para executar o projeto Spring Boot.

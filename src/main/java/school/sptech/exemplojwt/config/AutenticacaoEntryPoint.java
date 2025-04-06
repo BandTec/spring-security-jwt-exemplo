@@ -1,4 +1,4 @@
-package school.sptech.exemplojwt.api.configuration.security;
+package school.sptech.exemplojwt.config;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

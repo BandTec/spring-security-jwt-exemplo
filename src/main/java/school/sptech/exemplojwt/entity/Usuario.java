@@ -1,4 +1,4 @@
-package school.sptech.exemplojwt.domain.usuario;
+package school.sptech.exemplojwt.entity;
 
 
 import jakarta.persistence.Entity;

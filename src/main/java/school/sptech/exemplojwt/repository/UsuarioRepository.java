@@ -1,8 +1,8 @@
-package school.sptech.exemplojwt.domain.usuario.repository;
+package school.sptech.exemplojwt.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import school.sptech.exemplojwt.domain.usuario.Usuario;
+import school.sptech.exemplojwt.entity.Usuario;
 
 import java.util.Optional;
 

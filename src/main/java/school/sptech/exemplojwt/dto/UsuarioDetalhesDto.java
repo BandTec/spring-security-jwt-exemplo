@@ -1,8 +1,8 @@
-package school.sptech.exemplojwt.service.usuario.autenticacao.dto;
+package school.sptech.exemplojwt.dto;
 
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
-import school.sptech.exemplojwt.domain.usuario.Usuario;
+import school.sptech.exemplojwt.entity.Usuario;
 
 import java.util.Collection;
 

@@ -1,7 +1,7 @@
 # 🛡 spring-security-jwt-exemplo 🛡
 Exemplo de implementação de autenticação baseada em token (JWT) utilizando Spring Security. Este projeto demonstra uma forma segura e eficaz de gerenciar a autenticação de usuários em aplicações Spring Boot, utilizando o banco de dados em memória H2 para simplificar o teste e a configuração.
 
-## 🚀 Para Testar
+## Para Testar
 Este projeto foi configurado para facilitar a sua experimentação e compreensão sobre a autenticação baseada em JWT com Spring Security.
 
 ### 📚 Swagger UI

@@ -262,7 +262,78 @@ Agora que sabemos como armazenar senhas com seguranca, surge uma nova questao:
 
 A abordagem classica era a **sessao HTTP**: o servidor guarda na memoria que o usuario X esta autenticado e envia um cookie de sessao para o browser. Funciona — mas nao escala bem quando voce tem multiplos servidores (qual deles tem a sessao?).
 
-A solucao moderna para APIs REST e o **JWT (JSON Web Token)**.
+A solucao moderna para APIs REST envolve tokens. Mas nem todo token e igual.
+
+---
+
+### Token Opaco vs. Token Auto-contido (JWT)
+
+Existem dois modelos fundamentais de token de autenticacao. Entender a diferenca e essencial para escolher a abordagem certa.
+
+#### Token Opaco
+
+Um token opaco e apenas uma string aleatoria que nao carrega informacao alguma por si so:
+
+```
+a3f7b2c1-9e4d-4a8b-bc12-1f8e3d5a6c9f
+```
+
+O servidor precisa consultar um banco de dados (ou cache) para descobrir a quem esse token pertence:
+
+```
+Requisicao → Token → Consulta BD → "esse token pertence ao usuario 42, que tem role ADMIN"
+```
+
+- **Vantagem**: pode ser **revogado instantaneamente** (basta deletar do BD)
+- **Desvantagem**: toda requisicao gera uma consulta ao banco → gargalo de escala
+
+#### Token Auto-contido (JWT)
+
+Um JWT carrega as informacoes diretamente no seu payload (codificado em Base64):
+
+```
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJqb2huQGRvZS5jb20iLCJleHAiOjE3NDMzNTQwMDB9.xyz
+```
+
+Decodificando o payload:
+```json
+{
+  "sub": "john@doe.com",
+  "authorities": "",
+  "iat": 1743350400,
+  "exp": 1743354000
+}
+```
+
+O servidor lê quem é o usuario **diretamente do token**, sem consultar banco de dados.
+
+- **Vantagem**: stateless — qualquer servidor valida sem consultar BD
+- **Desvantagem**: **nao pode ser revogado antes da expiracao** — se o token foi emitido, e valido ate expirar
+
+#### A Implicacao Critica do JWT
+
+Como o JWT nao pode ser revogado, o servidor nao tem como "deslogar" um usuario remotamente. Se um token for comprometido (roubado), o atacante pode usa-lo ate expirar.
+
+A mitigacao e usar **tokens de curta duracao**:
+
+```
+Token opaco:    pode durar dias/semanas (revogavel)
+JWT tipico:     15 min a 1 hora (curto para limitar dano)
+JWT + Refresh:  access token curto (15 min) + refresh token longo (7 dias, opaco e revogavel)
+```
+
+Neste projeto usamos JWT simples com 1 hora de validade — adequado para fins educacionais. Em producao, o padrao mais robusto e JWT de curta duracao combinado com um Refresh Token opaco armazenado no servidor.
+
+| Caracteristica         | Token Opaco               | JWT (auto-contido)               |
+|------------------------|---------------------------|----------------------------------|
+| Conteudo               | String aleatoria opaca    | Payload legivel (Base64)         |
+| Validacao              | Consulta ao banco         | Verifica assinatura local        |
+| Revogacao              | Imediata (delete no BD)   | Impossivel antes de expirar      |
+| Escala horizontal      | Requer BD compartilhado   | Qualquer servidor valida         |
+| Dados do usuario       | So no servidor            | No proprio token                 |
+| Uso tipico             | Session tokens, API keys  | APIs REST stateless              |
+
+---
 
 ### O que e um JWT
 
@@ -468,6 +539,72 @@ curl -X POST http://localhost:8080/usuarios \
     <scope>runtime</scope>
 </dependency>
 ```
+
+---
+
+## Dicas e Cuidados
+
+### Sobre Senhas
+
+**Nunca reinvente o algoritmo de hash.**
+Usar `SHA-256(senha + salt)` manualmente parece razoavel mas e errado — voce nao consegue controlar a velocidade. Sempre use uma biblioteca consolidada: BCrypt, Argon2 ou scrypt.
+
+**Ajuste o cost factor conforme o hardware evolui.**
+BCrypt com cost=10 era adequado em 2010. Verifique periodicamente: o hash deve levar entre 100ms e 500ms no seu servidor. Se estiver muito rapido, aumente o cost.
+
+**Salt nao e secret, pepper e.**
+Salt pode ficar no banco sem problema — sua funcao e apenas unicidade. Pepper deve ficar *fora* do banco (variavel de ambiente), pois seu valor e que torna o hash inutilizavel sem acesso ao servidor.
+
+**Nunca logue senhas.**
+Nem em modo debug. Nem "so por enquanto". Logs ficam em arquivos, que ficam em backups, que ficam em S3, que ficam...
+
+**Cuidado com comparacao de timing.**
+`senha.equals(outraSenha)` retorna `false` mais rapido quando as strings diferem nos primeiros caracteres — isso permite ataques de timing. `BCryptPasswordEncoder.matches()` ja resolve isso internamente.
+
+---
+
+### Sobre JWT
+
+**Mantenha o tempo de expiracao curto.**
+1 hora e o maximo razoavel para um access token. Prefira 15 minutos em producao e use Refresh Token para renovar silenciosamente no frontend.
+
+**Nao coloque dados sensiveis no payload.**
+O payload e apenas Base64 — qualquer pessoa com o token pode decodificar e ler o conteudo. `email`, `userId`, `roles` sao ok. Numeros de cartao, CPF, dados pessoais sensiveis: nunca.
+
+**A chave secreta e o calcanhar de Aquiles.**
+Se `jwt.secret` vazar, todos os tokens emitidos por aquela chave podem ser forjados. Use:
+- Chave de no minimo 256 bits (32 bytes) para HS256
+- Variavel de ambiente em producao: `${JWT_SECRET}`
+- Troca periodica da chave (key rotation) em sistemas criticos
+
+**JWT nao tem logout real — planeje para isso.**
+Ao "deslogar", o frontend descarta o token, mas ele permanece valido ate expirar. Estrategias:
+- Tokens muito curtos (15 min) minimizam a janela de risco
+- Blacklist de tokens (perde o beneficio stateless)
+- Refresh Token revogavel no servidor (hibrido recomendado)
+
+**Prefira `HttpOnly` cookies em vez de `localStorage`.**
+`localStorage` e acessivel por qualquer JavaScript na pagina — XSS pode roubar o token.
+Cookies `HttpOnly` sao inacessiveis ao JavaScript e podem ser configurados com `SameSite=Strict` para mitigar CSRF.
+
+```http
+Set-Cookie: authToken=eyJ...; HttpOnly; Secure; SameSite=Strict; Path=/
+```
+
+**Valide sempre no servidor — nunca confie so no cliente.**
+O frontend pode esconder um botao, mas o endpoint protegido deve sempre verificar o token e as permissoes. "Security through obscurity" nao e seguranca.
+
+---
+
+### Red Flags — Sinais de que algo esta errado
+
+- Endpoint de login retornando `403 Forbidden` (deveria ser `401 Unauthorized`)
+- Token JWT com validade de 30 dias ou mais
+- Secret JWT commited no repositorio Git (use `git-secrets` para prevenir)
+- Senhas sendo logadas em qualquer nivel de log
+- CORS configurado com `*` em producao
+- H2 console exposto em producao
+- Endpoint de login sem rate limiting (sujeito a brute force)
 
 ---
 

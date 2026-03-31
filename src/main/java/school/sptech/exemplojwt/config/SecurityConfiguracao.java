@@ -77,6 +77,7 @@ public class SecurityConfiguracao {
             new AntPathRequestMatcher("/v3/api-docs/**"),
             new AntPathRequestMatcher("/actuator/*"),
             new AntPathRequestMatcher("/usuarios/login/**"),
+            new AntPathRequestMatcher("/usuarios/logout/**"),
             new AntPathRequestMatcher("/h2-console/**"),
             new AntPathRequestMatcher("/h2-console/**/**"),
             new AntPathRequestMatcher("/error/**")
@@ -189,24 +190,28 @@ public class SecurityConfiguracao {
     /**
      * Configura a política de CORS (Cross-Origin Resource Sharing).
      *
-     * <p>CORS controla quais origens (domínios) podem fazer requisições para esta API.
-     * A configuração atual usa {@code applyPermitDefaultValues()} que permite qualquer
-     * origem ({@code *}) — adequado apenas para desenvolvimento.</p>
+     * <p><b>Por que não usar {@code *} com cookies?</b><br>
+     * Quando o frontend usa {@code withCredentials: true} (necessário para enviar cookies),
+     * o navegador exige que o servidor informe uma origem específica em
+     * {@code Access-Control-Allow-Origin}. O valor {@code *} é rejeitado pelo browser
+     * nesse contexto — isso é uma regra do padrão CORS, não do Spring.</p>
      *
-     * <p><b>Em produção:</b> restrinja as origens permitidas:</p>
-     * <pre>
-     *   configuracao.setAllowedOrigins(List.of("https://meuapp.com.br"));
-     * </pre>
-     *
-     * <p>A lista de métodos HTTP permitidos inclui todos os verbos REST comuns.
-     * O header {@code Content-Disposition} é exposto para suportar download de arquivos.</p>
+     * <p>Em desenvolvimento, o Vite roda em {@code http://localhost:5173} por padrão.
+     * Em produção, substitua pela URL real do frontend.</p>
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuracao = new CorsConfiguration();
 
-        // Permite todas as origens, headers e credenciais básicas (apenas para dev/ensino)
-        configuracao.applyPermitDefaultValues();
+        // Origens permitidas — deve ser explícita quando allowCredentials=true
+        // Em produção: List.of("https://meuapp.com.br")
+        configuracao.setAllowedOrigins(List.of(
+                "http://localhost:5173",  // Vite dev server
+                "http://localhost:3000"   // Create React App (alternativa)
+        ));
+
+        // Necessário para que o browser envie/receba cookies nas requisições cross-origin
+        configuracao.setAllowCredentials(true);
 
         configuracao.setAllowedMethods(Arrays.asList(
                 HttpMethod.GET.name(),
@@ -219,8 +224,10 @@ public class SecurityConfiguracao {
                 HttpMethod.TRACE.name()
         ));
 
-        // Expõe o header Content-Disposition para que o frontend possa ler
-        // o nome de arquivos em respostas de download
+        // Permite todos os headers de requisição (Content-Type, Authorization etc.)
+        configuracao.setAllowedHeaders(List.of("*"));
+
+        // Expõe o header Content-Disposition para download de arquivos
         configuracao.setExposedHeaders(List.of(HttpHeaders.CONTENT_DISPOSITION));
 
         UrlBasedCorsConfigurationSource origem = new UrlBasedCorsConfigurationSource();

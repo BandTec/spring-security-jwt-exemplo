@@ -25,7 +25,7 @@ public class AutenticacaoService implements UserDetailsService {
 
     if (usuarioOpt.isEmpty()) {
 
-      throw new UsernameNotFoundException(String.format("usuario: %s nao encontrado", username));
+      throw new UsernameNotFoundException(String.format("usuário: %s não encontrado", username));
     }
 
     return new UsuarioDetalhesDto(usuarioOpt.get());

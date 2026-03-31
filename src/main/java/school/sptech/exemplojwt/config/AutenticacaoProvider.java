@@ -46,9 +46,10 @@ public class AutenticacaoProvider implements AuthenticationProvider {
     /**
      * Autentica o usuário verificando e-mail e senha.
      *
-     * <p>A senha digitada é comparada com o hash BCrypt armazenado no banco usando
-     * {@link PasswordEncoder#matches}. O BCrypt inclui o salt no próprio hash,
-     * então a comparação é feita diretamente (sem gerar o salt separadamente).</p>
+     * <p>A senha digitada é processada pelo {@link PasswordEncoder} injetado
+     * (Argon2id + Pepper) e comparada com o hash armazenado no banco via
+     * {@link PasswordEncoder#matches}. O salt é extraído automaticamente do hash
+     * pelo Argon2 — não é necessário gerenciá-lo separadamente.</p>
      *
      * @param authentication objeto contendo username (e-mail) e password (senha digitada)
      * @return token de autenticação com UserDetails e authorities se as credenciais forem válidas
@@ -63,7 +64,7 @@ public class AutenticacaoProvider implements AuthenticationProvider {
         // Lança UsernameNotFoundException se o usuário não existir
         UserDetails userDetails = this.usuarioAutorizacaoService.loadUserByUsername(username);
 
-        // Compara a senha digitada com o hash BCrypt armazenado no banco
+        // Aplica pepper + Argon2 na senha digitada e compara com o hash armazenado no banco
         if (this.passwordEncoder.matches(password, userDetails.getPassword())) {
             // Credenciais válidas: retorna autenticação com authorities (perfis do usuário)
             return new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());

@@ -1,5 +1,3 @@
-insert into usuario
-    (nome, email, senha)
-values
-    ('John Doe', 'john@doe.com', '$2a$10$0/TKTGxdREbWaWjWYhwf6e9P1fPOAMMNqEnZgOG95jnSkHSfkkIrC');
--- senha: 123456
+-- Os dados de teste são criados pelo DataInitializer.java nesta branch.
+-- O hash do usuário de teste depende do PasswordEncoder ativo (Argon2+Pepper)
+-- e não pode ser computado de forma estática em SQL.

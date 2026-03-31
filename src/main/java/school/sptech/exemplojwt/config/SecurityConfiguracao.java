@@ -1,6 +1,7 @@
 package school.sptech.exemplojwt.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
@@ -14,7 +15,6 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -57,6 +57,9 @@ public class SecurityConfiguracao {
     @Autowired
     private AutenticacaoEntryPoint autenticacaoJwtEntryPoint;
 
+    @Value("${security.pepper}")
+    private String pepper;
+
     /**
      * URLs que não exigem autenticação (acesso público).
      *
@@ -81,7 +84,7 @@ public class SecurityConfiguracao {
             "/usuarios/login/**",
             "/usuarios/logout/**",
             "/h2-console/**",
-            "/h2-console/**/**",
+            "/h2-console/*/**",
             "/error/**"
     };
 
@@ -176,17 +179,23 @@ public class SecurityConfiguracao {
     }
 
     /**
-     * Define o algoritmo de hash para senhas: BCrypt.
+     * Define o algoritmo de hash para senhas: Argon2id com Pepper.
      *
-     * <p>BCrypt é um algoritmo de hash adaptativo que inclui um "salt" aleatório
-     * automaticamente, tornando cada hash único mesmo para senhas idênticas.
-     * O fator de custo padrão é 10, o que torna ataques de força bruta computacionalmente caros.</p>
+     * <p>Argon2id é um algoritmo <b>memory-hard</b>: além de CPU, cada operação
+     * de hash exige ~64 MB de RAM. Isso torna ataques com GPU inviáveis, já que
+     * uma GPU com 8 GB de VRAM consegue rodar apenas ~125 instâncias simultâneas.</p>
      *
-     * <p><b>Nunca armazene senhas em texto puro.</b> Sempre use um hash seguro como BCrypt.</p>
+     * <p>O Pepper é aplicado via HMAC-SHA256 antes do hash. Ele não fica no banco
+     * — apenas nas variáveis de ambiente — portanto um vazamento de banco não é
+     * suficiente para atacar as senhas.</p>
+     *
+     * <p>Ver {@link PepperPasswordEncoder} para detalhes de implementação.</p>
+     *
+     * <p><b>Nunca armazene senhas em texto puro.</b> Sempre use um hash seguro.</p>
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new PepperPasswordEncoder(pepper);
     }
 
     /**

@@ -38,18 +38,18 @@ public class UsuarioController {
     }
 
     /**
-     * Autentica o usuario e retorna o token JWT como cookie HttpOnly.
+     * Autentica o usuário e retorna o token JWT como cookie HttpOnly.
      *
-     * <p><b>Por que HttpOnly?</b> Um cookie HttpOnly nao e acessivel via JavaScript
+     * <p><b>Por que HttpOnly?</b> Um cookie HttpOnly não é acessível via JavaScript
      * ({@code document.cookie}), o que impede que ataques XSS roubem o token.
      * Com {@code sessionStorage} ou {@code localStorage}, um script malicioso
-     * injetado na pagina consegue ler o token trivialmente.</p>
+     * injetado na página consegue ler o token trivialmente.</p>
      *
-     * <p><b>SameSite=Strict</b> impede que o cookie seja enviado em requisicoes
-     * cross-site (ex: link de outro dominio), o que mitiga ataques CSRF sem
+     * <p><b>SameSite=Strict</b> impede que o cookie seja enviado em requisições
+     * cross-site (ex: link de outro domínio), o que mitiga ataques CSRF sem
      * precisar de CSRF tokens.</p>
      *
-     * <p><b>Secure</b> deve ser {@code true} em producao (HTTPS obrigatorio).
+     * <p><b>Secure</b> deve ser {@code true} em produção (HTTPS obrigatório).
      * Em desenvolvimento local (HTTP) usamos {@code false}.</p>
      */
     @PostMapping("/login")
@@ -64,8 +64,8 @@ public class UsuarioController {
 
         // Token vai para o cookie HttpOnly — inacessível ao JavaScript (proteção XSS)
         ResponseCookie cookie = ResponseCookie.from(COOKIE_NOME, autenticado.getToken())
-                .httpOnly(true)                          // inacessivel ao JavaScript
-                .secure(false)                           // true em producao (exige HTTPS)
+                .httpOnly(true)                          // inacessível ao JavaScript
+                .secure(false)                           // true em produção (exige HTTPS)
                 .sameSite("Strict")                      // bloqueia envio cross-site (mitiga CSRF)
                 .path("/")                               // valido para toda a aplicacao
                 .maxAge(Duration.ofSeconds(jwtValidity)) // expira junto com o token JWT
@@ -79,14 +79,14 @@ public class UsuarioController {
     }
 
     /**
-     * Invalida a sessao do usuario limpando o cookie de autenticacao.
+     * Invalida a sessão do usuário limpando o cookie de autenticação.
      *
-     * <p>Como JWT e stateless, o servidor nao pode "cancelar" o token.
+     * <p>Como JWT é stateless, o servidor não pode "cancelar" o token.
      * O logout aqui funciona removendo o cookie do browser (maxAge=0),
-     * o que impede que o token seja enviado nas proximas requisicoes.</p>
+     * o que impede que o token seja enviado nas próximas requisições.</p>
      *
-     * <p>O token ainda estaria tecnicamente valido ate expirar — por isso
-     * tokens de curta duracao (15 min a 1 hora) sao importantes.</p>
+     * <p>O token ainda estaria tecnicamente válido até expirar — por isso
+     * tokens de curta duração (15 min a 1 hora) são importantes.</p>
      */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {

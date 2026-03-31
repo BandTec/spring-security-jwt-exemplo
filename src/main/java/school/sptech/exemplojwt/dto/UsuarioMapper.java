@@ -34,6 +34,23 @@ public class UsuarioMapper {
     return usuarioTokenDto;
   }
 
+  /**
+   * Mapeia para o DTO de resposta do login — sem o token.
+   *
+   * <p>O token não pertence ao body: ele é enviado como cookie HttpOnly
+   * via {@code Set-Cookie}. Este DTO carrega apenas os dados necessários
+   * para o frontend identificar o usuário na sessão.</p>
+   */
+  public static UsuarioSessaoDto ofSessao(UsuarioTokenDto tokenDto) {
+    UsuarioSessaoDto dto = new UsuarioSessaoDto();
+
+    dto.setUserId(tokenDto.getUserId());
+    dto.setEmail(tokenDto.getEmail());
+    dto.setNome(tokenDto.getNome());
+
+    return dto;
+  }
+
   public static UsuarioListarDto of(Usuario usuario) {
     UsuarioListarDto usuarioListarDto = new UsuarioListarDto();
 

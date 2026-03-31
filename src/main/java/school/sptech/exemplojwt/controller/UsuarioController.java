@@ -53,15 +53,17 @@ public class UsuarioController {
      * Em desenvolvimento local (HTTP) usamos {@code false}.</p>
      */
     @PostMapping("/login")
-    public ResponseEntity<UsuarioTokenDto> login(
+    public ResponseEntity<UsuarioSessaoDto> login(
             @RequestBody UsuarioLoginDto usuarioLoginDto,
             HttpServletResponse response) {
 
         final Usuario usuario = UsuarioMapper.of(usuarioLoginDto);
-        UsuarioTokenDto usuarioTokenDto = this.usuarioService.autenticar(usuario);
 
-        // Cria o cookie HttpOnly com o token JWT
-        ResponseCookie cookie = ResponseCookie.from(COOKIE_NOME, usuarioTokenDto.getToken())
+        // autenticar() gera o token internamente — precisamos dele apenas para o cookie
+        UsuarioTokenDto autenticado = this.usuarioService.autenticar(usuario);
+
+        // Token vai para o cookie HttpOnly — inacessível ao JavaScript (proteção XSS)
+        ResponseCookie cookie = ResponseCookie.from(COOKIE_NOME, autenticado.getToken())
                 .httpOnly(true)                          // inacessivel ao JavaScript
                 .secure(false)                           // true em producao (exige HTTPS)
                 .sameSite("Strict")                      // bloqueia envio cross-site (mitiga CSRF)
@@ -71,7 +73,9 @@ public class UsuarioController {
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        return ResponseEntity.ok(usuarioTokenDto);
+        // Body retorna apenas dados de sessão — sem o token
+        UsuarioSessaoDto sessao = UsuarioMapper.ofSessao(autenticado);
+        return ResponseEntity.ok(sessao);
     }
 
     /**

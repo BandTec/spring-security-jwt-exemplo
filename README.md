@@ -1,9 +1,22 @@
-# Autenticação JWT com Spring Boot 3 + Spring Security 6
+# Autenticação JWT com Spring Boot 4 + Spring Security 7
 
 Projeto de referência para implementação de autenticação stateless com **JWT (JSON Web Token)**
-usando Spring Boot 3.x, Spring Security 6 e JJWT 0.12.x.
+usando Spring Boot 4.x, Spring Security 7 e JJWT 0.12.x.
 
-> **Branch:** `spring-3.x.x` — Spring Boot 3.4.x | Java 21 | JJWT 0.12.x
+> **Branch:** `main` — Spring Boot 4.0.5 | Java 21 LTS | JJWT 0.12.6
+>
+> Para a versão Spring Boot 3.x, veja a branch [`spring-3.x.x`](../../tree/spring-3.x.x)
+
+### Mudancas em relacao ao Spring Boot 3 (branch spring-3.x.x)
+
+| Aspecto | Spring Boot 3.x | Spring Boot 4.x (esta branch) |
+|---------|-----------------|-------------------------------|
+| Spring Framework | 6.x | 7.x |
+| Spring Security | 6.x | 7.x |
+| Java minimo | 17 | 17 (recomendado: 21 LTS ou 25 LTS) |
+| `AntPathRequestMatcher` | Disponivel | **Removido** — usar `requestMatchers(String...)` |
+| Jackson | 2.x | 3.x |
+| Servlet API | Jakarta EE 10 | Jakarta EE 11 |
 
 ---
 
@@ -351,4 +364,4 @@ src/main/java/school/sptech/exemplojwt/
 
 ---
 
-*Projeto educacional — SPTech | Branch: `spring-3.x.x` (Spring Boot 3.4.x + JJWT 0.12.x)*
+*Projeto educacional — SPTech | Branch: `main` (Spring Boot 4.0.5 + Spring Security 7 + JJWT 0.12.6)*

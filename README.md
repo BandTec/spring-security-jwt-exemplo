@@ -1,8 +1,6 @@
-# Da Senha ao Token — Autenticação JWT com Spring Boot 4
+# Da Senha ao Token: Autenticação JWT com Spring Boot 4
 
-> **Branch:** `main` — Spring Boot 4.0.5 | Java 21 LTS | JJWT 0.12.6
->
-> Para a versão Spring Boot 3.x, veja a branch [`spring-3.x.x`](../../tree/spring-3.x.x)
+> **Branch:** `main` | Spring Boot 4.0.5 | Java 21 LTS | JJWT 0.12.6
 
 ---
 
@@ -10,536 +8,433 @@
 
 Para entender por que usamos BCrypt, Salt, Pepper e JWT, precisamos começar do início.
 
-### Anos 90: Texto Puro (Plaintext)
+### Anos 90: Texto Puro
 
-Os primeiros sistemas simplesmente gravavam a senha diretamente no banco de dados:
+Os primeiros sistemas gravavam a senha diretamente no banco de dados:
 
 ```sql
--- Anos 90 — Não faça isso. Nunca. Em hipótese alguma.
-INSERT INTO usuario (email, senha) VALUES ('john@doe.com', '123456');
+-- Não faça isso. Nunca. Em hipótese alguma.
+INSERT INTO usuario (email, senha) VALUES ('joao@email.com', 'senha123');
 ```
 
-O problema era óbvio: qualquer pessoa com acesso ao banco — um DBA malicioso, um backup vazado, um SQL Injection — via todas as senhas de todos os usuários, em texto claro.
-
-Quando o Yahoo teve [3 bilhões de contas vazadas em 2013](https://en.wikipedia.org/wiki/Yahoo!_data_breaches), grande parte das senhas estava em plaintext ou em formatos equivalentemente frágeis.
-
----
+Qualquer pessoa com acesso ao banco, seja um DBA malicioso, um backup vazado ou um SQL Injection bem-sucedido, via todas as senhas de todos os usuários em texto claro.
 
 ### MD5 e SHA-1: A Ilusão de Segurança
 
-A solução natural foi usar funções de hash. Em vez de gravar `123456`, gravava-se o hash:
+A solução natural foi usar funções de hash. Em vez de gravar `senha123`, gravava-se o hash:
 
 ```
-MD5("123456")   = "e10adc3949ba59abbe56e057f20f883e"
-SHA1("123456")  = "7c4a8d09ca3762af61e59520943dc26494f8941b"
+MD5("senha123") = "67abe4f56a5dd32d26a0c8c46b8e9a42"
 ```
 
-Parecia seguro. Afinal, hash não tem inversa, certo?
+Parecia seguro. Hash não tem inversa, certo?
 
-O problema: hash é **determinístico**. A mesma entrada sempre produz a mesma saída. Isso abriu caminho para as **Rainbow Tables**.
+O problema é que hash é **determinístico**: a mesma entrada sempre produz a mesma saída. Isso abriu espaço para as **Rainbow Tables**, tabelas precomputadas com bilhões de pares `hash → senha`. Sites como [CrackStation](https://crackstation.net) têm essas tabelas disponíveis gratuitamente. Você cola o hash e recebe a senha em segundos.
 
----
-
-### Rainbow Tables: Atacando o Hash
-
-Rainbow Table é uma tabela precomputada com milhões (ou bilhões) de pares `hash → senha`:
-
-```
-e10adc3949ba59abbe56e057f20f883e  →  123456
-5f4dcc3b5aa765d61d8327deb882cf99  →  password
-827ccb0eea8a706c4c34a16891f84e7b  →  12345678
-...
-```
-
-Com essa tabela em mãos, o atacante não precisa "quebrar" o hash — só precisa fazer uma consulta. Sites como [CrackStation](https://crackstation.net) e [WeakPass](https://weakpass.com) têm bilhões de hashes precomputados disponíveis gratuitamente.
-
-```bash
-# Teste você mesmo — cole esse hash no CrackStation:
-e10adc3949ba59abbe56e057f20f883e
-# Resultado imediato: "123456"
-```
-
-Resultado: MD5 e SHA-1 são **inúteis** para armazenar senhas. O NIST [desaconselha seu uso](https://csrc.nist.gov/projects/hash-functions) para autenticação desde 2005.
-
----
+Resultado: MD5 e SHA-1 são inúteis para armazenar senhas. O NIST [desaconselha seu uso](https://csrc.nist.gov/projects/hash-functions) para autenticação desde 2005.
 
 ### Salt: Quebrando as Rainbow Tables
 
-A resposta ao problema das Rainbow Tables é o **Salt**: um valor aleatório e único gerado para cada usuário, concatenado com a senha antes do hash.
+A resposta ao problema foi o **Salt**: um valor aleatório e único gerado para cada usuário, misturado com a senha antes do hash.
 
 ```
-salt_usuario_1 = "xK9p$2mR"
-hash = MD5("xK9p$2mR" + "123456") = "3c59dc048e8850243be8079a5c74d079"
+salt_joao  = "xK9p2mR8"
+hash = MD5("xK9p2mR8" + "senha123") = "3c59dc048e8850243be8079a5c74d079"
 
-salt_usuario_2 = "7bQw#1nZ"
-hash = MD5("7bQw#1nZ" + "123456") = "a2c28d7e6f1b3904d8f752c9e1470e2c"
+salt_maria = "7bQw1nZ3"
+hash = MD5("7bQw1nZ3" + "senha123") = "a2c28d7e6f1b3904d8f752c9e1470e2c"
 ```
 
-Dois usuários com a mesma senha `123456` têm hashes completamente diferentes. As Rainbow Tables preexistentes tornam-se **inúteis** — seria necessário gerar uma tabela nova para cada salt possível, o que é computacionalmente inviável.
+Dois usuários com a mesma senha têm hashes completamente diferentes. As Rainbow Tables preexistentes tornam-se inúteis porque o atacante precisaria gerar uma tabela específica para cada salt possível, o que é computacionalmente inviável.
 
-O salt não é secreto — fica armazenado junto com o hash no banco de dados. O que o torna efetivo é a unicidade: o atacante precisaria montar uma Rainbow Table específica para cada usuário individualmente.
-
----
+O salt não é secreto. Ele fica armazenado junto com o hash no banco. O que o torna efetivo é a unicidade.
 
 ### O Problema dos Hashes Rápidos
 
-Mesmo com salt, MD5 e SHA-256 têm um problema fundamental: são **rápidos demais**.
+Mesmo com salt, MD5 e SHA-256 têm um problema fundamental: são rápidos demais.
 
-Uma GPU moderna consegue calcular:
+| Algoritmo        | Velocidade estimada (GPU)          |
+|------------------|------------------------------------|
+| MD5              | ~50 bilhões de hashes por segundo  |
+| SHA-256          | ~10 bilhões de hashes por segundo  |
+| BCrypt (cost 10) | ~20.000 hashes por segundo         |
+| Argon2id         | Configurável (intencional)         |
 
-| Algoritmo  | Velocidade estimada (GPU)         |
-|------------|-----------------------------------|
-| MD5        | ~50 **bilhões** de hashes/segundo |
-| SHA-256    | ~10 **bilhões** de hashes/segundo |
-| BCrypt (cost 10) | ~20.000 hashes/segundo      |
-| Argon2id   | Configurável (proposital)         |
-
-Com MD5, um atacante que obtém o banco de dados pode tentar 50 bilhões de senhas por segundo. Uma senha de 8 caracteres alfanuméricos tem ~218 trilhões de combinações — quebrável em menos de 1 hora com hardware dedicado.
-
----
+Com MD5, um atacante que obtém o banco pode tentar bilhões de senhas por segundo. Uma senha curta e comum é encontrada em minutos.
 
 ### BCrypt: Lento por Design
 
-BCrypt foi criado em 1999 especificamente para armazenar senhas. Sua característica central é o **fator de custo** (cost factor), que controla quantas rodadas de processamento são executadas:
+BCrypt foi criado em 1999 especificamente para armazenar senhas. Sua característica central é o **fator de custo**, que controla quantas rodadas de processamento são executadas:
 
 ```
-custo = 10  →  2^10  = 1.024 rodadas  →  ~100ms por hash
-custo = 12  →  2^12  = 4.096 rodadas  →  ~400ms por hash
-custo = 14  →  2^14  = 16.384 rodadas →  ~1,6s por hash
+custo = 10  →  2^10 = 1.024 rodadas  →  ~100ms por hash
+custo = 12  →  2^12 = 4.096 rodadas  →  ~400ms por hash
 ```
 
-O fator de custo é **ajustável conforme o hardware evolui**. Em 2010, cost=10 era seguro. Em 2025, cost=12 ou 13 é mais adequado. O BCrypt acompanha o crescimento computacional.
+O fator de custo é ajustável conforme o hardware evolui. O que era seguro em 2010 pode não ser suficiente em 2025. Essa adaptabilidade é o grande diferencial do BCrypt em relação a hashes comuns.
 
-#### Anatomia de um hash BCrypt
-
-O usuário de teste deste projeto tem sua senha armazenada como:
+O hash BCrypt do usuário de teste deste projeto é:
 
 ```
 $2a$10$0/TKTGxdREbWaWjWYhwf6e9P1fPOAMMNqEnZgOG95jnSkHSfkkIrC
 ```
 
-Cada parte tem um significado:
+Lendo o hash:
 
 ```
-$2a$        → versão do BCrypt (2a = versão atual recomendada)
-$10$        → fator de custo (cost=10, ou seja, 2^10 = 1024 iterações)
-0/TKTGxdREbWaWjWYhwf6e  → salt (22 caracteres Base64 = 16 bytes aleatórios)
-9P1fPOAMMNqEnZgOG95jnSkHSfkkIrC → hash da senha + salt (31 caracteres)
+$2a$  = versão do BCrypt
+$10$  = fator de custo (2^10 = 1024 iterações)
+0/TKTGxdREbWaWjWYhwf6e  = salt (22 chars Base64, gerado automaticamente)
+9P1fPOAMMNqEnZgOG95jnSkHSfkkIrC = hash da senha + salt
 ```
 
-O salt está embutido no próprio hash — não é necessário armazená-lo separadamente.
-
-Como o Spring Boot utiliza BCrypt neste projeto:
-
-```java
-// SecurityConfiguracao.java — define o encoder como bean
-@Bean
-public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder(); // cost padrão = 10
-}
-
-// UsuarioService.java — ao criar usuário, a senha é hasheada antes de salvar
-String senhaCriptografada = passwordEncoder.encode(novoUsuario.getSenha());
-novoUsuario.setSenha(senhaCriptografada);
-
-// AutenticacaoProvider.java — ao fazer login, compara senha digitada com hash no banco
-if (this.passwordEncoder.matches(senhaDigitada, hashNoBanco)) {
-    // autenticado!
-}
-```
-
-O método `matches()` extrai o salt do próprio hash, recalcula e compara — você nunca precisa gerenciar o salt manualmente.
-
----
+O salt fica embutido no próprio hash. Não é necessário armazená-lo separadamente.
 
 ### Argon2: Memory-Hard
 
-BCrypt é **CPU-hard**: difícil de paralelizar porque exige muitas iterações de CPU. Mas GPUs modernas têm milhares de núcleos — mesmo lento, é possível rodar muitas instâncias de BCrypt em paralelo.
+BCrypt é CPU-hard: difícil de rodar em paralelo em CPU convencional. Mas GPUs têm milhares de núcleos e conseguem rodar muitas instâncias de BCrypt em paralelo mesmo com o custo elevado.
 
-**Argon2** (vencedor da Password Hashing Competition em 2015) adiciona o conceito de **memory-hard**: além de CPU, o algoritmo exige grande quantidade de RAM.
+**Argon2** (vencedor da Password Hashing Competition em 2015) é **memory-hard**: além de CPU, cada operação de hash exige uma quantidade configurável de RAM. Uma GPU com 8 GB de VRAM, usando Argon2 com 64 MB por hash, consegue rodar apenas ~125 instâncias simultâneas. Isso torna ataques via GPU inviáveis na prática.
 
-```
-Argon2id (configuração recomendada):
-  - Memória: 64 MB por hash
-  - Iterações: 3
-  - Paralelismo: 4 threads
-```
-
-Uma GPU com 8 GB de VRAM consegue rodar apenas ~125 instâncias simultâneas de Argon2 com 64 MB cada. Isso torna ataques com GPU essencialmente inviável.
-
-O Spring Security suporta Argon2 nativamente:
-
-```java
-// Alternativa ao BCrypt para maior segurança (requer spring-security-crypto)
-@Bean
-public PasswordEncoder passwordEncoder() {
-    return new Argon2PasswordEncoder(
-        16,   // tamanho do salt em bytes
-        32,   // tamanho do hash em bytes
-        1,    // paralelismo
-        65536,// memória em KB (64 MB)
-        3     // iterações
-    );
-}
-```
-
-> Para este projeto educacional usamos BCrypt (mais simples de entender e configurar).
-> Em produção, Argon2id é a escolha mais robusta segundo o [OWASP](https://chefsec.io/owasp-password-storage-cheat-sheet).
-
----
+Este projeto usa BCrypt por ser mais simples de entender e configurar. A branch [`feature/argon2-pepper`](../../tree/feature/argon2-pepper) implementa Argon2id com pepper.
 
 ### Pepper: A Camada que o Banco Não Conhece
 
-Salt resolve as Rainbow Tables, e BCrypt/Argon2 torna o brute force lento. Mas existe ainda um cenário crítico: **vazamento completo do banco de dados**.
+Salt protege contra Rainbow Tables. BCrypt torna o brute force lento. Mas existe ainda um cenário crítico: o atacante obtém o banco de dados completo.
 
-Se o atacante tem o banco, ele tem os salts e os hashes. Com tempo suficiente, pode tentar senhas por brute force (devagar, mas possível para senhas fracas).
+Se o atacante tem o banco, tem os salts e os hashes. Com tempo suficiente, pode tentar senhas por brute force, lento mas possível para senhas fracas.
 
-O **Pepper** é uma chave secreta global da aplicação que é concatenada com a senha antes do hash — mas que **não fica no banco de dados**:
-
-```
-hash = BCrypt(senha + salt + pepper)
-
-Onde:
-  senha  = "123456"          (fornecida pelo usuário)
-  salt   = "xK9p$2mR..."    (gerado automaticamente, salvo no banco)
-  pepper = "chave-secreta"   (variável de ambiente, NUNCA no banco)
-```
-
-Resultado: mesmo com o banco vazado, o atacante não consegue calcular os hashes sem o pepper. Segundo estimativas da comunidade de segurança, a combinação Salt + Pepper + BCrypt/Argon2 reduz a efetividade de ataques de brute force em **mais de 99%** em cenários de vazamento de banco.
-
-```bash
-# application.properties (pepper como variável de ambiente)
-security.pepper=${SENHA_PEPPER:valorPadraoDev}
-```
-
-> Este projeto não implementa pepper para manter o código simples e focado no JWT.
-> Em produção, considere adicionar pepper como camada extra.
-
----
-
-### Resumo: A Evolução da Segurança de Senhas
+O **Pepper** é uma chave secreta da aplicação que é incorporada à senha antes do hash, mas que nunca fica no banco de dados:
 
 ```
-Anos 90      Plaintext          Senha visível diretamente no banco
+hash = BCrypt(HMAC(senha, pepper))
+
+senha  = entrada do usuário
+pepper = variável de ambiente, nunca salvo no banco
+```
+
+Mesmo com o banco completamente vazado, o atacante não consegue calcular os hashes sem o pepper. A combinação Salt + Pepper + Argon2 é a prática mais robusta disponível atualmente.
+
+Este projeto não implementa pepper para manter o foco no JWT. A branch [`feature/argon2-pepper`](../../tree/feature/argon2-pepper) adiciona essa camada.
+
+### Resumo
+
+```
+Anos 90      Plaintext          Senha visível no banco
              ↓
 Anos 2000    MD5 / SHA-1        Hash determinístico, vulnerável a Rainbow Tables
              ↓
-Mid-2000s    Salt + SHA-256     Derrota Rainbow Tables, mas ainda rápido demais
+Mid-2000s    Salt + SHA-256     Derrota Rainbow Tables, mas ainda muito rápido
              ↓
-1999-hoje    BCrypt             Lento por design (CPU-hard), salt embutido, cost ajustável
+1999-hoje    BCrypt             Lento por design, salt embutido, custo ajustável
              ↓
-2015-hoje    Argon2             Memory-hard, resistente a GPU, recomendado pelo OWASP
+2015-hoje    Argon2id           Memory-hard, resistente a GPU, recomendado pelo OWASP
              ↓
-Combinado    Salt+Pepper+Argon2 Prática mais robusta disponível atualmente
+Combinado    Salt+Pepper+Argon2 Melhor prática disponível atualmente
 ```
 
 ---
 
-## O que Esta Implementação Resolve (e o que Deixa para Produção)
+## E Depois do Login? O Problema da Sessão
 
-Esta tabela mostra explicitamente como cada problema discutido acima é endereçado — ou deixado como extensão consciente — neste projeto:
+O usuário se autenticou. Como provamos isso nas próximas requisições sem pedir a senha de novo?
 
-| Problema / Ameaça                    | Esta implementação resolve?  | Como / Onde no código                                                                 |
-|--------------------------------------|------------------------------|---------------------------------------------------------------------------------------|
-| Senha em texto puro no banco         | **Sim**                      | `UsuarioService.criar()` chama `passwordEncoder.encode()` antes de salvar             |
-| Rainbow Tables                       | **Sim**                      | BCrypt gera salt automaticamente — cada hash é único mesmo para senhas iguais         |
-| Hashes rápidos (MD5/SHA-1)           | **Sim**                      | `BCryptPasswordEncoder` (cost=10) leva ~100ms por hash                                |
-| Brute force com GPU                  | **Parcialmente**             | BCrypt é CPU-hard; Argon2 (memory-hard) seria mais resistente a GPU                  |
-| Vazamento total do banco             | **Parcialmente**             | BCrypt com salt dificulta; Pepper (não implementado) completaria a proteção           |
-| Sessão stateful / problemas de escala| **Sim**                      | JWT stateless — servidor não guarda estado; qualquer instância valida o token         |
-| Token adulterado pelo cliente        | **Sim**                      | Assinatura HMAC-SHA256 em `GerenciadorTokenJwt` — alteração invalida a signature     |
-| Token expirado aceito                | **Sim**                      | JJWT valida claim `exp` automaticamente; `AutenticacaoFilter` trata `ExpiredJwtException` |
-| Chave secreta exposta no repositório | **Não (intencional)**        | Em produção: `jwt.secret=${JWT_SECRET}` via variável de ambiente                     |
-| Pepper para proteção extra           | **Não (intencional)**        | Extensão para o projeto de vocês — adicionar pepper como variável de ambiente        |
-| Tokens de longa duração sem saída    | **Não (intencional)**        | Refresh Token e revogação ficam fora do escopo didático inicial                      |
+A abordagem tradicional era a **sessão HTTP**: o servidor guarda na memória que o usuário X está autenticado e envia um identificador (session ID) para o browser. Funciona, mas não escala quando há múltiplos servidores. Cada servidor teria uma memória diferente e o usuário autenticado em um não seria reconhecido por outro.
 
----
+A solução moderna para APIs REST são os tokens. Mas não são todos iguais.
 
-## E Depois do Login? JWT
+### Token Opaco vs. JWT
 
-Agora que sabemos como armazenar senhas com segurança, surge uma nova questão:
-
-> **O usuário já se autenticou. Como provamos isso nas próximas requisições sem pedir a senha de novo?**
-
-A abordagem clássica era a **sessão HTTP**: o servidor guarda na memória que o usuário X está autenticado e envia um cookie de sessão para o browser. Funciona — mas não escala bem quando você tem múltiplos servidores (qual deles tem a sessão?).
-
-A solução moderna para APIs REST envolve tokens. Mas nem todo token é igual.
-
----
-
-### Token Opaco vs. Token Auto-contido (JWT)
-
-Existem dois modelos fundamentais de token de autenticação. Entender a diferença é essencial para escolher a abordagem certa.
-
-#### Token Opaco
-
-Um token opaco é apenas uma string aleatória que não carrega informação alguma por si só:
+**Token Opaco** é uma string aleatória sem significado próprio:
 
 ```
 a3f7b2c1-9e4d-4a8b-bc12-1f8e3d5a6c9f
 ```
 
-O servidor precisa consultar um banco de dados (ou cache) para descobrir a quem esse token pertence:
+Para validar, o servidor precisa consultar um banco ou cache:
 
 ```
-Requisição → Token → Consulta BD → "esse token pertence ao usuário 42, que tem role ADMIN"
+Requisição → token → consulta BD → "esse token é do usuário 42, role ADMIN"
 ```
 
-- **Vantagem**: pode ser **revogado instantaneamente** (basta deletar do BD)
-- **Desvantagem**: toda requisição gera uma consulta ao banco → gargalo de escala
+Vantagem: pode ser revogado instantaneamente, basta deletar do banco.
+Desvantagem: toda requisição gera uma consulta ao banco de dados.
 
-#### Token Auto-contido (JWT)
-
-Um JWT carrega as informações diretamente no seu payload (codificado em Base64):
+**JWT (JSON Web Token)** carrega as informações diretamente no payload, codificado em Base64:
 
 ```
-eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJqb2huQGRvZS5jb20iLCJleHAiOjE3NDMzNTQwMDB9.xyz
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJqb2FvQGVtYWlsLmNvbSIsImV4cCI6MTc0MzM1NDAwMH0.xyz
 ```
 
 Decodificando o payload:
 ```json
 {
-  "sub": "john@doe.com",
-  "authorities": "",
+  "sub": "joao@email.com",
   "iat": 1743350400,
   "exp": 1743354000
 }
 ```
 
-O servidor lê quem é o usuário **diretamente do token**, sem consultar banco de dados.
+O servidor lê quem é o usuário diretamente do token, sem consultar banco.
 
-- **Vantagem**: stateless — qualquer servidor valida sem consultar BD
-- **Desvantagem**: **não pode ser revogado antes da expiração** — se o token foi emitido, é válido até expirar
-
-#### A Implicação Crítica do JWT
-
-Como o JWT não pode ser revogado, o servidor não tem como "deslogar" um usuário remotamente. Se um token for comprometido (roubado), o atacante pode usá-lo até expirar.
-
-A mitigação é usar **tokens de curta duração**:
-
-```
-Token opaco:    pode durar dias/semanas (revogável)
-JWT típico:     15 min a 1 hora (curto para limitar dano)
-JWT + Refresh:  access token curto (15 min) + refresh token longo (7 dias, opaco e revogável)
-```
-
-Neste projeto usamos JWT simples com 1 hora de validade — adequado para fins educacionais. Em produção, o padrão mais robusto é JWT de curta duração combinado com um Refresh Token opaco armazenado no servidor.
-
-| Característica         | Token Opaco               | JWT (auto-contido)               |
-|------------------------|---------------------------|----------------------------------|
-| Conteúdo               | String aleatória opaca    | Payload legível (Base64)         |
-| Validação              | Consulta ao banco         | Verifica assinatura local        |
-| Revogação              | Imediata (delete no BD)   | Impossível antes de expirar      |
-| Escala horizontal      | Requer BD compartilhado   | Qualquer servidor valida         |
-| Dados do usuário       | Só no servidor            | No próprio token                 |
-| Uso típico             | Session tokens, API keys  | APIs REST stateless              |
-
----
+Vantagem: stateless, qualquer servidor valida sem estado compartilhado.
+Desvantagem: não pode ser revogado antes de expirar. Se o token foi emitido, ele é válido até o campo `exp`. Por isso tokens de curta duração são essenciais.
 
 ### O que é um JWT
 
-JWT é um token autocontido e assinado digitalmente que o próprio cliente carrega. O servidor não armazena nada — ele apenas verifica a assinatura.
+JWT é um token com três partes separadas por ponto:
 
 ```
 HEADER.PAYLOAD.SIGNATURE
-  ↑          ↑           ↑
-algoritmo  dados do   prova de
-           usuário    autenticidade
 ```
 
-Cada parte é codificada em Base64 (não criptografada — qualquer um pode ler o payload):
+Cada parte é codificada em Base64, mas não é criptografada. Qualquer um com o token pode ler o payload. Nunca coloque senhas, números de cartão ou dados pessoais sensíveis no token.
 
 ```json
-// HEADER (decodificado)
+// HEADER
 { "alg": "HS256", "typ": "JWT" }
 
-// PAYLOAD (decodificado) — claims do token
+// PAYLOAD
 {
-  "sub": "john@doe.com",          // subject: quem é o usuário
-  "authorities": "",              // roles/perfis do usuário
-  "iat": 1743350400,              // issued at: quando foi emitido (Unix timestamp)
-  "exp": 1743354000               // expiration: quando expira
+  "sub": "joao@email.com",    // quem é o usuário
+  "iat": 1743350400,          // quando foi emitido
+  "exp": 1743354000           // quando expira
 }
 
 // SIGNATURE
 HMAC-SHA256(base64(header) + "." + base64(payload), chave-secreta)
 ```
 
-> **Importante:** o payload é apenas Base64, não é criptografado. Não coloque senhas, números de cartão ou dados sensíveis no token. Use apenas o necessário para identificar o usuário.
+A assinatura é o que garante a integridade: só o servidor conhece a chave secreta. Se alguém modificar o payload, a assinatura não bate e o token é rejeitado.
 
-A **assinatura** é o que garante a segurança: só o servidor conhece a chave secreta. Se alguém modificar o payload (ex: mudar o email ou adicionar uma role), a assinatura não vai bater e o token será rejeitado.
+---
 
-### Fluxo Completo
+## Onde Guardar o Token no Frontend
+
+Depois que o servidor emite o JWT, o frontend precisa guardá-lo em algum lugar para enviá-lo nas próximas requisições. Existem três abordagens comuns e a diferença entre elas é principalmente de segurança.
+
+### sessionStorage
+
+O token é guardado via JavaScript (`sessionStorage.setItem('token', valor)`) e recuperado na hora de fazer requisições (`sessionStorage.getItem('token')`).
+
+Escopo: específico da aba. Quando a aba fecha, os dados somem.
+
+Problema de segurança: qualquer script JavaScript rodando na página consegue ler o valor. Um ataque **XSS** que injeta um script malicioso na página pode roubar o token e usá-lo em outra máquina.
+
+### localStorage
+
+Igual ao sessionStorage, mas os dados persistem depois que o browser fecha. É compartilhado entre todas as abas do mesmo domínio.
+
+O problema de segurança é o mesmo, agravado pelo fato de que o token fica armazenado permanentemente.
+
+### Cookie com HttpOnly (o que este projeto usa)
+
+O servidor envia o token via `Set-Cookie` com a flag `HttpOnly`. Essa flag instrui o browser a nunca expor o valor via JavaScript. `document.cookie` não mostra cookies HttpOnly.
+
+O browser gerencia o cookie automaticamente: armazena na resposta do login e envia em todas as requisições subsequentes ao mesmo domínio, sem nenhum código JavaScript do lado do frontend.
+
+```http
+Set-Cookie: authToken=eyJ...; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600
+```
+
+Vantagem: XSS não consegue roubar o token porque JavaScript não tem acesso a ele.
+
+Desvantagem: requer atenção ao CSRF (Cross-Site Request Forgery). Como o browser envia o cookie automaticamente, uma página maliciosa em outro domínio poderia disparar requisições autenticadas. A flag `SameSite=Strict` resolve isso: instrui o browser a não enviar o cookie em requisições originadas de outros domínios.
+
+Segurança é sobre camadas. Cookie HttpOnly com `SameSite=Strict` é a abordagem mais robusta para a maioria dos casos, mas não é invulnerável. A configuração correta do CORS, a validação dos inputs, o tempo de expiração do token e a rotação das chaves formam juntos a postura de segurança da aplicação. Cada camada compensa as fraquezas das outras.
+
+### Por que o JavaScript não pode limpar um cookie HttpOnly
+
+No logout, o frontend não pode simplesmente fazer `document.cookie = 'authToken=; expires=0'` porque `document.cookie` ignora cookies HttpOnly. A única forma de remover o cookie é o servidor responder com `Set-Cookie: authToken=; Max-Age=0`, que instrui o browser a deletá-lo. Por isso o endpoint `/usuarios/logout` existe no backend.
+
+---
+
+## O Fluxo Completo
+
+### 1. Login
 
 ```
-1. LOGIN
-   Cliente → POST /usuarios/login { email, senha }
-   Servidor → valida credenciais (BCrypt.matches)
-            → gera token JWT assinado com HS256
-   Resposta → { "token": "eyJ...", "nome": "John Doe" }
+Cliente  →  POST /usuarios/login  { email, senha }
 
-2. REQUISIÇÕES AUTENTICADAS
-   Cliente → GET /usuarios
-             Authorization: Bearer eyJ...
-   Servidor → AutenticacaoFilter extrai o token
-            → JJWT verifica assinatura e expiração
-            → extrai email do payload
-            → autentica o usuário no SecurityContext
-   Resposta → 200 OK [ lista de usuários ]
+Servidor →  valida credenciais com BCrypt.matches()
+         →  gera JWT assinado com HMAC-SHA256
+         →  Set-Cookie: authToken=eyJ...; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600
 
-3. TOKEN INVÁLIDO OU EXPIRADO
-   Cliente → GET /usuarios
-             Authorization: Bearer eyJ...EXPIRADO
-   Servidor → JJWT lança ExpiredJwtException
-            → 401 Unauthorized
+Browser  →  armazena o cookie automaticamente
+Resposta →  { userId, nome, email }   (o token não vai no body)
+```
+
+### 2. Requisições Autenticadas
+
+```
+Browser  →  GET /usuarios
+            Cookie: authToken=eyJ...   (enviado automaticamente, sem código JS)
+
+Servidor →  AutenticacaoFilter extrai o token do cookie
+         →  JJWT verifica assinatura e expiração
+         →  extrai email do payload
+         →  registra autenticação no SecurityContext
+
+Resposta →  200 OK  [ lista de usuários ]
+```
+
+### 3. Logout
+
+```
+Browser  →  POST /usuarios/logout
+            Cookie: authToken=eyJ...
+
+Servidor →  Set-Cookie: authToken=; HttpOnly; Max-Age=0
+Browser  →  deleta o cookie
+
+Obs: o token JWT ainda é tecnicamente válido até o campo exp expirar.
+     Por isso tokens de curta duração (15-60 min) são importantes.
+```
+
+### 4. Token Inválido ou Expirado
+
+```
+Browser  →  GET /usuarios
+            Cookie: authToken=eyJ...EXPIRADO
+
+Servidor →  JJWT lança ExpiredJwtException
+         →  AutenticacaoEntryPoint responde com 401 Unauthorized
 ```
 
 ### Como o Código Implementa Isso
 
-**Gerando o token no login** (`GerenciadorTokenJwt.java`):
+**Gerando o token** (`GerenciadorTokenJwt.java`):
 ```java
 return Jwts.builder()
-    .subject(authentication.getName())        // claim "sub": email do usuário
-    .claim("authorities", authorities)        // claim customizado: roles
-    .issuedAt(new Date())                     // claim "iat": agora
-    .expiration(new Date(now + validity))     // claim "exp": daqui a N segundos
-    .signWith(parseSecret())                  // assina com HMAC-SHA256
-    .compact();                               // serializa para String
+    .subject(authentication.getName())    // claim "sub": email do usuário
+    .claim("authorities", authorities)    // roles do usuário
+    .issuedAt(new Date())                 // claim "iat"
+    .expiration(new Date(now + validity)) // claim "exp"
+    .signWith(parseSecret())              // HMAC-SHA256
+    .compact();
 ```
 
-**Validando a cada requisição** (`AutenticacaoFilter.java`):
+**Enviando o token via cookie** (`UsuarioController.java`):
 ```java
-// Extrai "Bearer <token>" do header Authorization
-jwtToken = requestTokenHeader.substring(7);
+ResponseCookie cookie = ResponseCookie.from("authToken", token)
+    .httpOnly(true)       // JavaScript não lê
+    .secure(false)        // true em produção (exige HTTPS)
+    .sameSite("Strict")   // bloqueia envio cross-site
+    .path("/")
+    .maxAge(Duration.ofSeconds(jwtValidity))
+    .build();
 
-// JJWT valida assinatura e expiração automaticamente ao parsear
-username = jwtTokenManager.getUsernameFromToken(jwtToken);
-
-// Registra o usuário como autenticado no contexto da thread
-SecurityContextHolder.getContext().setAuthentication(autenticacao);
+response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 ```
 
-**A chave secreta** (`application.properties`):
-```properties
-# Mínimo 256 bits (32 bytes) para HMAC-SHA256
-# Em produção: jwt.secret=${JWT_SECRET}
-jwt.secret=RXhpc3Rl...  (chave em Base64)
-
-# Validade em SEGUNDOS — 3600 = 1 hora
-jwt.validity=3600
+**Extraindo o token na requisição** (`AutenticacaoFilter.java`):
+```java
+// Tenta extrair do cookie primeiro, com fallback para Authorization: Bearer
+String token = extrairDosCookies(request);
+if (token == null) {
+    token = extrairDoHeader(request);
+}
 ```
+
+---
+
+## O que Esta Implementação Resolve
+
+| Problema                              | Resolve?          | Como                                                                      |
+|---------------------------------------|-------------------|---------------------------------------------------------------------------|
+| Senha em texto puro no banco          | Sim               | `passwordEncoder.encode()` em `UsuarioService.criar()`                    |
+| Rainbow Tables                        | Sim               | BCrypt gera salt único automaticamente                                    |
+| Hashes rápidos (MD5/SHA-1)            | Sim               | BCrypt cost=10, ~100ms por hash                                           |
+| Brute force com GPU                   | Parcialmente      | BCrypt é CPU-hard; Argon2 seria mais resistente (ver branch argon2)       |
+| Vazamento total do banco              | Parcialmente      | BCrypt dificulta; Pepper completaria a proteção (ver branch argon2)       |
+| Token adulterado pelo cliente         | Sim               | Assinatura HMAC-SHA256 em `GerenciadorTokenJwt`                           |
+| Token expirado aceito                 | Sim               | JJWT valida claim `exp`                                                   |
+| Token roubável via XSS                | Sim               | Cookie HttpOnly: JavaScript não acessa o token                            |
+| CSRF via cookie                       | Sim               | `SameSite=Strict` bloqueia envio cross-site                               |
+| Chave secreta exposta no repositório  | Não (intencional) | Em produção: `jwt.secret=${JWT_SECRET}` via variável de ambiente          |
+| Tokens sem possibilidade de revogação | Não (intencional) | Refresh Token e blacklist ficam fora do escopo didático                   |
 
 ---
 
 ## Como Rodar
 
-**Requisitos:** Java 21+ e Maven 3.8+ (ou use o wrapper `./mvnw`)
+Requisitos: Java 21+ e Maven 3.8+
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-API disponível em `http://localhost:8080`
+API disponível em `http://localhost:8080`.
 
-**Usuário de teste pré-cadastrado:**
+Usuário de teste pré-cadastrado:
 
-| Email         | Senha  | Hash BCrypt armazenado                                          |
-|---------------|--------|-----------------------------------------------------------------|
-| john@doe.com  | 123456 | `$2a$10$0/TKTGxdREbWaWjWYhwf6e9P1fPOAMMNqEnZgOG95jnSkHSfkkIrC` |
+| Email         | Senha  |
+|---------------|--------|
+| john@doe.com  | 123456 |
 
-Decodificando o hash: `$2a$` (versão BCrypt) + `$10$` (cost=10) + salt (22 chars) + hash (31 chars).
+### Interfaces de desenvolvimento
+
+| Interface   | URL                                   |
+|-------------|---------------------------------------|
+| Swagger UI  | http://localhost:8080/swagger-ui.html |
+| Console H2  | http://localhost:8080/h2-console      |
+| H2 JDBC URL | `jdbc:h2:mem:teste-security`          |
 
 ---
 
 ## Endpoints
 
-### POST `/usuarios/login` — Autenticar
+### POST /usuarios/login
 
 ```bash
-curl -X POST http://localhost:8080/usuarios/login \
+curl -c cookies.txt -X POST http://localhost:8080/usuarios/login \
   -H "Content-Type: application/json" \
   -d '{"email": "john@doe.com", "senha": "123456"}'
 ```
 
 Resposta `200 OK`:
 ```json
-{
-  "userId": 1,
-  "nome": "John Doe",
-  "email": "john@doe.com",
-  "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJqb2huQGRvZS5jb20i..."
-}
+{ "userId": 1, "nome": "John Doe", "email": "john@doe.com" }
 ```
 
-### GET `/usuarios` — Listar (requer token)
+O token JWT vai no `Set-Cookie` da resposta, não no body.
+
+### GET /usuarios (requer autenticação)
 
 ```bash
-curl http://localhost:8080/usuarios \
-  -H "Authorization: Bearer <TOKEN>"
+curl -b cookies.txt http://localhost:8080/usuarios
 ```
 
-Sem token → `401 Unauthorized`
+O `-b cookies.txt` instrui o curl a enviar os cookies salvos, simulando o comportamento do browser.
 
-### POST `/usuarios` — Criar usuário (requer token)
+### POST /usuarios (requer autenticação)
 
 ```bash
-curl -X POST http://localhost:8080/usuarios \
+curl -b cookies.txt -X POST http://localhost:8080/usuarios \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <TOKEN>" \
   -d '{"nome": "Maria Silva", "email": "maria@email.com", "senha": "minhasenha"}'
 ```
 
-### Interfaces de desenvolvimento
+### POST /usuarios/logout
 
-| Interface        | URL                                    |
-|------------------|----------------------------------------|
-| Swagger UI       | http://localhost:8080/swagger-ui.html  |
-| Console H2       | http://localhost:8080/h2-console       |
-| H2 JDBC URL      | `jdbc:h2:mem:teste-security`           |
-| H2 usuário/senha | `admin` / `admin`                      |
-
----
-
-## O que NÃO Fazer em Produção
-
-| Prática deste projeto (didática) | Versão para produção                          |
-|----------------------------------|-----------------------------------------------|
-| `jwt.secret` no .properties      | Variável de ambiente: `${JWT_SECRET}`         |
-| H2 in-memory                     | PostgreSQL/MySQL com backup                   |
-| `spring.h2.console.enabled=true` | `false` em produção                           |
-| CORS com `*` (qualquer origem)   | `setAllowedOrigins(List.of("https://..."))`   |
-| BCrypt cost=10                   | cost=12 ou 13 (ajuste conforme o hardware)    |
-| Sem pepper                       | Adicionar pepper via variável de ambiente     |
-| Token de 1 hora sem refresh      | Token curto (15 min) + Refresh Token          |
-
----
-
-## Dependências
-
-```xml
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-security</artifactId>
-</dependency>
-
-<!-- JJWT 0.12.x -->
-<dependency>
-    <groupId>io.jsonwebtoken</groupId>
-    <artifactId>jjwt-api</artifactId>
-    <version>0.12.6</version>
-</dependency>
-<dependency>
-    <groupId>io.jsonwebtoken</groupId>
-    <artifactId>jjwt-impl</artifactId>
-    <version>0.12.6</version>
-</dependency>
-<dependency>
-    <groupId>io.jsonwebtoken</groupId>
-    <artifactId>jjwt-jackson</artifactId>
-    <version>0.12.6</version>
-    <scope>runtime</scope>
-</dependency>
+```bash
+curl -b cookies.txt -c cookies.txt -X POST http://localhost:8080/usuarios/logout
 ```
+
+---
+
+## O que Não Fazer em Produção
+
+| Prática neste projeto (didática) | O que fazer em produção                         |
+|----------------------------------|-------------------------------------------------|
+| `jwt.secret` fixo no .properties | Variável de ambiente `${JWT_SECRET}`            |
+| H2 in-memory                     | PostgreSQL ou MySQL com backup                  |
+| `spring.h2.console.enabled=true` | Desativar em produção                           |
+| `secure(false)` no cookie        | `secure(true)`, exige HTTPS                     |
+| BCrypt cost=10                   | cost=12 ou 13 conforme o hardware               |
+| Sem pepper                       | Pepper via variável de ambiente                 |
+| Token de 1 hora sem refresh      | Token curto (15 min) + Refresh Token revogável  |
+| CORS aberto                      | `setAllowedOrigins(List.of("https://..."))` explícito |
 
 ---
 
@@ -547,66 +442,54 @@ curl -X POST http://localhost:8080/usuarios \
 
 ### Sobre Senhas
 
-**Nunca reinvente o algoritmo de hash.**
-Usar `SHA-256(senha + salt)` manualmente parece razoável mas é errado — você não consegue controlar a velocidade. Sempre use uma biblioteca consolidada: BCrypt, Argon2 ou scrypt.
+Nunca reinvente o algoritmo de hash. Usar `SHA-256(senha + salt)` manualmente parece razoável, mas você não consegue controlar a velocidade do cálculo. Use sempre uma biblioteca consolidada: BCrypt, Argon2 ou scrypt.
 
-**Ajuste o cost factor conforme o hardware evolui.**
-BCrypt com cost=10 era adequado em 2010. Verifique periodicamente: o hash deve levar entre 100ms e 500ms no seu servidor. Se estiver muito rápido, aumente o cost.
+Ajuste o custo conforme o hardware evolui. O hash deve levar entre 100ms e 500ms no servidor. Se estiver muito rápido, aumente o cost.
 
-**Salt não é secret, pepper é.**
-Salt pode ficar no banco sem problema — sua função é apenas unicidade. Pepper deve ficar *fora* do banco (variável de ambiente), pois seu valor é que torna o hash inutilizável sem acesso ao servidor.
+Salt não é secreto, pepper é. Salt pode ficar no banco sem problema, sua função é apenas unicidade. Pepper deve ficar fora do banco em variável de ambiente, porque sem ele os hashes são inúteis mesmo com o banco exposto.
 
-**Nunca logue senhas.**
-Nem em modo debug. Nem "só por enquanto". Logs ficam em arquivos, que ficam em backups, que ficam em S3, que ficam...
+Nunca logue senhas. Nem em modo debug. Nem "só por enquanto". Logs ficam em arquivos, arquivos ficam em backups, backups ficam em storage externo.
 
-**Cuidado com comparação de timing.**
-`senha.equals(outraSenha)` retorna `false` mais rápido quando as strings diferem nos primeiros caracteres — isso permite ataques de timing. `BCryptPasswordEncoder.matches()` já resolve isso internamente.
-
----
+Cuidado com comparação de timing. `senha.equals(outraSenha)` retorna `false` mais rápido quando as strings diferem nos primeiros caracteres, o que permite ataques de timing. `BCryptPasswordEncoder.matches()` já resolve isso internamente.
 
 ### Sobre JWT
 
-**Mantenha o tempo de expiração curto.**
-1 hora é o máximo razoável para um access token. Prefira 15 minutos em produção e use Refresh Token para renovar silenciosamente no frontend.
+Mantenha o tempo de expiração curto. Uma hora é o máximo razoável para um access token. Em produção, prefira 15 minutos com Refresh Token para renovação silenciosa.
 
-**Não coloque dados sensíveis no payload.**
-O payload é apenas Base64 — qualquer pessoa com o token pode decodificar e ler o conteúdo. `email`, `userId`, `roles` são ok. Números de cartão, CPF, dados pessoais sensíveis: nunca.
+Não coloque dados sensíveis no payload. O payload é Base64, não é criptografia. Email, userId e roles são adequados. Número de cartão, CPF e outros dados pessoais: nunca.
 
-**A chave secreta é o calcanhar de Aquiles.**
-Se `jwt.secret` vazar, todos os tokens emitidos por aquela chave podem ser forjados. Use:
-- Chave de no mínimo 256 bits (32 bytes) para HS256
-- Variável de ambiente em produção: `${JWT_SECRET}`
-- Troca periódica da chave (key rotation) em sistemas críticos
+A chave secreta é o ponto mais crítico. Se `jwt.secret` vazar, qualquer um pode forjar tokens com qualquer identidade. Use no mínimo 256 bits (32 bytes) para HS256, mantenha em variável de ambiente e considere rotação periódica em sistemas críticos.
 
-**JWT não tem logout real — planeje para isso.**
-Ao "deslogar", o frontend descarta o token, mas ele permanece válido até expirar. Estratégias:
-- Tokens muito curtos (15 min) minimizam a janela de risco
-- Blacklist de tokens (perde o benefício stateless)
-- Refresh Token revogável no servidor (híbrido recomendado)
+JWT não tem logout real. Ao deslogar, o browser descarta o cookie, mas o token continua tecnicamente válido até expirar. Estratégias: tokens curtos, blacklist de tokens revogados (perde o benefício stateless) ou Refresh Token revogável no servidor.
 
-**Prefira `HttpOnly` cookies em vez de `localStorage`.**
-`localStorage` é acessível por qualquer JavaScript na página — XSS pode roubar o token.
-Cookies `HttpOnly` são inacessíveis ao JavaScript e podem ser configurados com `SameSite=Strict` para mitigar CSRF.
+### Sobre Segurança em Geral
 
-```http
-Set-Cookie: authToken=eyJ...; HttpOnly; Secure; SameSite=Strict; Path=/
-```
+Segurança não é um recurso que você liga ou desliga. É uma soma de camadas onde cada uma compensa as fraquezas das outras. Cookie HttpOnly protege contra XSS, mas precisa de SameSite para CSRF. BCrypt protege o banco, mas pepper protege contra vazamento do banco. JWT elimina estado no servidor, mas exige tokens curtos e rotação de chaves.
 
-**Valide sempre no servidor — nunca confie só no cliente.**
-O frontend pode esconder um botão, mas o endpoint protegido deve sempre verificar o token e as permissões. "Security through obscurity" não é segurança.
+Não existe sistema invulnerável. O objetivo é tornar um ataque suficientemente caro em tempo, recursos e conhecimento para que não valha o esforço. Cada decisão de segurança é um tradeoff entre proteção, usabilidade e custo operacional.
 
 ---
 
-### Red Flags — Sinais de que algo está errado
+## Sinais de Problema
 
-- Endpoint de login retornando `403 Forbidden` (deveria ser `401 Unauthorized`)
+- Login retornando `403 Forbidden` (deveria ser `401 Unauthorized`)
 - Token JWT com validade de 30 dias ou mais
-- Secret JWT commitado no repositório Git (use `git-secrets` para prevenir)
+- Chave JWT commitada no repositório
 - Senhas sendo logadas em qualquer nível de log
 - CORS configurado com `*` em produção
-- H2 console exposto em produção
-- Endpoint de login sem rate limiting (sujeito a brute force)
+- Console H2 exposto em produção
+- Endpoint de login sem rate limiting
 
 ---
 
-*Projeto educacional — SPTech | `main`: Spring Boot 4.0.5 + Spring Security 7 + JJWT 0.12.6*
+## Outras Versões
+
+Esta é a versão principal com Spring Boot 4. Para variações desta implementação:
+
+- [`spring-3.x.x`](../../tree/spring-3.x.x): mesma implementação para Spring Boot 3.4.x / Spring Security 6. A diferença está no uso de `AntPathRequestMatcher` para definir URLs públicas, que foi removido no Spring Security 7.
+
+- [`feature/argon2-pepper`](../../tree/feature/argon2-pepper): substitui BCrypt por Argon2id e adiciona Pepper via HMAC-SHA256. Recomendado para sistemas que precisam de maior resistência a ataques com GPU e proteção em cenários de vazamento total do banco.
+
+---
+
+*Projeto educacional | SPTech | Spring Boot 4.0.5 + Spring Security 7 + JJWT 0.12.6*

@@ -1,9 +1,12 @@
 package school.sptech.exemplojwt.controller;
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,12 +38,37 @@ public class UsuarioController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UsuarioTokenDto> login(@RequestBody UsuarioLoginDto usuarioLoginDto) {
+    public ResponseEntity<UsuarioTokenDto> login(@RequestBody @Valid UsuarioLoginDto usuarioLoginDto, HttpServletResponse response) {
 
         final Usuario usuario = UsuarioMapper.of(usuarioLoginDto);
         UsuarioTokenDto usuarioTokenDto = this.usuarioService.autenticar(usuario);
 
+        ResponseCookie cookie = ResponseCookie.from("authToken", usuarioTokenDto.getToken())
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(3600)
+                .sameSite("Lax")
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
         return ResponseEntity.status(200).body(usuarioTokenDto);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletResponse response) {
+
+        ResponseCookie cookie = ResponseCookie.from("authToken", "")
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping

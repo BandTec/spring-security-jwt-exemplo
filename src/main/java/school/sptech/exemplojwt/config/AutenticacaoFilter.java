@@ -1,6 +1,7 @@
 package school.sptech.exemplojwt.config;
 
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,6 +15,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.web.filter.OncePerRequestFilter;
 import school.sptech.exemplojwt.service.AutenticacaoService;
 
+import jakarta.servlet.http.Cookie;
 import java.io.IOException;
 import java.util.Objects;
 
@@ -39,7 +41,16 @@ public class AutenticacaoFilter extends OncePerRequestFilter {
 
         if (Objects.nonNull(requestTokenHeader) && requestTokenHeader.startsWith("Bearer ")) {
             jwtToken = requestTokenHeader.substring(7);
+        } else if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("authToken".equals(cookie.getName())) {
+                    jwtToken = cookie.getValue();
+                    break;
+                }
+            }
+        }
 
+        if (jwtToken != null) {
             try {
                 username = jwtTokenManager.getUsernameFromToken(jwtToken);
             } catch (ExpiredJwtException exception) {
@@ -50,8 +61,12 @@ public class AutenticacaoFilter extends OncePerRequestFilter {
                 LOGGER.trace("[FALHA AUTENTICACAO] - stack trace: %s", exception);
 
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            }
+            } catch (SignatureException exception) {
 
+                LOGGER.info("[FALHA AUTENTICACAO] - Assinatura do token inválida: {}", exception.getMessage());
+
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            }
         }
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {

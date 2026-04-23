@@ -1,10 +1,12 @@
 package school.sptech.exemplojwt.dto;
 
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import school.sptech.exemplojwt.entity.Usuario;
 
 import java.util.Collection;
+import java.util.List;
 
 public class UsuarioDetalhesDto implements UserDetails {
 
@@ -14,10 +16,13 @@ public class UsuarioDetalhesDto implements UserDetails {
 
   private final String senha;
 
+  private final String perfil;
+
   public UsuarioDetalhesDto(Usuario usuario) {
     this.nome = usuario.getNome();
     this.email = usuario.getEmail();
     this.senha = usuario.getSenha();
+    this.perfil = usuario.getPerfil();
   }
 
   public String getNome() {
@@ -26,7 +31,7 @@ public class UsuarioDetalhesDto implements UserDetails {
 
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {
-    return null;
+    return List.of(new SimpleGrantedAuthority(perfil));
   }
 
   @Override

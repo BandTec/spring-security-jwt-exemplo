@@ -2,6 +2,7 @@ package school.sptech.exemplojwt.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public class UsuarioCriacaoDto {
@@ -17,6 +18,10 @@ public class UsuarioCriacaoDto {
   @Size(min = 6, max = 20)
   @Schema(description = "Senha do usuário", example = "123456")
   private String senha;
+
+  @NotBlank
+  @Schema(description = "Perfil do usuário", example = "ROLE_USER")
+  private String perfil;
 
   public String getNome() {
     return nome;
@@ -40,5 +45,13 @@ public class UsuarioCriacaoDto {
 
   public void setSenha(String senha) {
     this.senha = senha;
+  }
+
+  public String getPerfil() {
+    return perfil;
+  }
+
+  public void setPerfil(String perfil) {
+    this.perfil = perfil;
   }
 }

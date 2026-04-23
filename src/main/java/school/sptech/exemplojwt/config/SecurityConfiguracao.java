@@ -1,6 +1,7 @@
 package school.sptech.exemplojwt.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
@@ -11,8 +12,6 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
-import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -38,6 +37,12 @@ public class SecurityConfiguracao {
     @Autowired
     private AutenticacaoEntryPoint autenticacaoJwtEntryPoint;
 
+    @Value("${spring.h2.console.enabled:false}")
+    private boolean h2ConsoleEnabled;
+
+    @Value("${cors.allowedOrigins:*}")
+    private List<String> corsAllowedOrigins;
+
     private static final AntPathRequestMatcher[] URLS_PERMITIDAS = {
             new AntPathRequestMatcher("/swagger-ui/**"),
             new AntPathRequestMatcher("/swagger-ui.html"),
@@ -49,25 +54,29 @@ public class SecurityConfiguracao {
             new AntPathRequestMatcher("/api/public/authenticate"),
             new AntPathRequestMatcher("/webjars/**"),
             new AntPathRequestMatcher("/v3/api-docs/**"),
-            new AntPathRequestMatcher("/actuator/*"),
+            new AntPathRequestMatcher("/actuator/health"),
             new AntPathRequestMatcher("/usuarios/login/**"),
-            new AntPathRequestMatcher("/h2-console/**"),
-            new AntPathRequestMatcher("/h2-console/**/**"),
+            new AntPathRequestMatcher("/usuarios/logout/**"),
             new AntPathRequestMatcher("/error/**")
     };
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .headers(headers -> headers
-                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::disable))
+                .headers(headers -> {
+                    if (h2ConsoleEnabled) {
+                        headers.frameOptions(frameOptions -> frameOptions.disable());
+                    }
+                })
                 .cors(Customizer.withDefaults())
-                .csrf(CsrfConfigurer<HttpSecurity>::disable)
-                .authorizeHttpRequests(authorize -> authorize.requestMatchers(URLS_PERMITIDAS)
-                        .permitAll()
-                        .anyRequest()
-                        .authenticated()
-                )
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(authorize -> {
+                    authorize.requestMatchers(URLS_PERMITIDAS).permitAll();
+                    if (h2ConsoleEnabled) {
+                        authorize.requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll();
+                    }
+                    authorize.anyRequest().authenticated();
+                })
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(autenticacaoJwtEntryPoint))
                 .sessionManagement(management -> management
@@ -109,7 +118,9 @@ public class SecurityConfiguracao {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuracao = new CorsConfiguration();
-        configuracao.applyPermitDefaultValues();
+        configuracao.setAllowedOrigins(corsAllowedOrigins);
+        configuracao.setAllowCredentials(true);
+        configuracao.setAllowedHeaders(List.of("*"));
         configuracao.setAllowedMethods(
                 Arrays.asList(
                         HttpMethod.GET.name(),
@@ -117,9 +128,7 @@ public class SecurityConfiguracao {
                         HttpMethod.PUT.name(),
                         HttpMethod.PATCH.name(),
                         HttpMethod.DELETE.name(),
-                        HttpMethod.OPTIONS.name(),
-                        HttpMethod.HEAD.name(),
-                        HttpMethod.TRACE.name()));
+                        HttpMethod.OPTIONS.name()));
 
         configuracao.setExposedHeaders(List.of(HttpHeaders.CONTENT_DISPOSITION));
 

@@ -17,7 +17,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -37,46 +36,38 @@ public class SecurityConfiguracao {
     @Autowired
     private AutenticacaoEntryPoint autenticacaoJwtEntryPoint;
 
-    @Value("${spring.h2.console.enabled:false}")
-    private boolean h2ConsoleEnabled;
-
-    @Value("${cors.allowedOrigins:*}")
+    @Value("${cors.allowedOrigins:http://localhost:5173}")
     private List<String> corsAllowedOrigins;
 
-    private static final AntPathRequestMatcher[] URLS_PERMITIDAS = {
-            new AntPathRequestMatcher("/swagger-ui/**"),
-            new AntPathRequestMatcher("/swagger-ui.html"),
-            new AntPathRequestMatcher("/swagger-resources"),
-            new AntPathRequestMatcher("/swagger-resources/**"),
-            new AntPathRequestMatcher("/configuration/ui"),
-            new AntPathRequestMatcher("/configuration/security"),
-            new AntPathRequestMatcher("/api/public/**"),
-            new AntPathRequestMatcher("/api/public/authenticate"),
-            new AntPathRequestMatcher("/webjars/**"),
-            new AntPathRequestMatcher("/v3/api-docs/**"),
-            new AntPathRequestMatcher("/actuator/health"),
-            new AntPathRequestMatcher("/usuarios/login/**"),
-            new AntPathRequestMatcher("/usuarios/logout/**"),
-            new AntPathRequestMatcher("/error/**")
+    private static final String[] URLS_PERMITIDAS = {
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/swagger-resources",
+            "/swagger-resources/**",
+            "/configuration/ui",
+            "/configuration/security",
+            "/api/public/**",
+            "/api/public/authenticate",
+            "/webjars/**",
+            "/v3/api-docs/**",
+            "/actuator/*",
+            "/usuarios/login/**",
+            "/usuarios/logout/**",
+            "/h2-console/**",
+            "/h2-console/*/**",
+            "/error/**"
     };
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .headers(headers -> {
-                    if (h2ConsoleEnabled) {
-                        headers.frameOptions(frameOptions -> frameOptions.disable());
-                    }
-                })
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(authorize -> {
-                    authorize.requestMatchers(URLS_PERMITIDAS).permitAll();
-                    if (h2ConsoleEnabled) {
-                        authorize.requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll();
-                    }
-                    authorize.anyRequest().authenticated();
-                })
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(URLS_PERMITIDAS).permitAll()
+                        .anyRequest().authenticated()
+                )
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(autenticacaoJwtEntryPoint))
                 .sessionManagement(management -> management
@@ -91,7 +82,8 @@ public class SecurityConfiguracao {
     public AuthenticationManager authManager(HttpSecurity http) throws Exception {
         AuthenticationManagerBuilder authenticationManagerBuilder =
                 http.getSharedObject(AuthenticationManagerBuilder.class);
-        authenticationManagerBuilder.authenticationProvider(new AutenticacaoProvider(autenticacaoService, passwordEncoder()));
+        authenticationManagerBuilder.authenticationProvider(
+                new AutenticacaoProvider(autenticacaoService, passwordEncoder()));
         return authenticationManagerBuilder.build();
     }
 
@@ -121,20 +113,18 @@ public class SecurityConfiguracao {
         configuracao.setAllowedOrigins(corsAllowedOrigins);
         configuracao.setAllowCredentials(true);
         configuracao.setAllowedHeaders(List.of("*"));
-        configuracao.setAllowedMethods(
-                Arrays.asList(
-                        HttpMethod.GET.name(),
-                        HttpMethod.POST.name(),
-                        HttpMethod.PUT.name(),
-                        HttpMethod.PATCH.name(),
-                        HttpMethod.DELETE.name(),
-                        HttpMethod.OPTIONS.name()));
-
+        configuracao.setAllowedMethods(Arrays.asList(
+                HttpMethod.GET.name(),
+                HttpMethod.POST.name(),
+                HttpMethod.PUT.name(),
+                HttpMethod.PATCH.name(),
+                HttpMethod.DELETE.name(),
+                HttpMethod.OPTIONS.name()
+        ));
         configuracao.setExposedHeaders(List.of(HttpHeaders.CONTENT_DISPOSITION));
 
         UrlBasedCorsConfigurationSource origem = new UrlBasedCorsConfigurationSource();
         origem.registerCorsConfiguration("/**", configuracao);
-
         return origem;
     }
 }
